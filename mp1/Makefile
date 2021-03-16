@@ -1,2 +1,4 @@
-xmod: xmod.c
-	gcc -Wall -o xmod xmod.c
+xmod: *.c
+	gcc *.c -Wall -o xmod
+clean:
+	rm *.o xmod
