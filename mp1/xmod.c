@@ -21,23 +21,21 @@ int convertDecimalToOctal(int decimalNumber)
 }
 
 int getChmod(const char *path){
-    
     struct stat ret;
+    int octal_mode;
     printf("path: %s\n", path);
     
     if (stat(path, &ret) == -1) {
         return -1;
     }
     
-   printf("%d\n", convertDecimalToOctal(ret.st_mode)%10000);
-
-   int octal_mode = 00;
-   octal_mode = convertDecimalToOctal(ret.st_mode)%10000;
-
-   return octal_mode;
+    octal_mode = convertDecimalToOctal(ret.st_mode)%10000;
+    printf("%d\n", octal_mode);
+    
+    return octal_mode;
 }
 
-int getOptions(char* option[]){
+int getOptions(char* option){
     if (option[0] == '-' ){
         if (option[1] == 'c'|| option[1] == 'v' ||option[1] == 'R' ){
             return 0;
@@ -47,18 +45,10 @@ int getOptions(char* option[]){
     return 1;
 }
 
-int checkMode(char* mode, int permission)
+
+int checkPermissions(char*mode, char* manip)
 {
-    int result = 00;
-    char* manip;
-
-    for (int i = 2; i <= strlen(mode); i++)
-    {
-        manip += mode[i];
-    }
-
-    printf("MODE -> %s", manip);
-
+    int result = 0;
     switch (mode[1]){
         case '-':
         {
@@ -77,7 +67,7 @@ int checkMode(char* mode, int permission)
             } else if (strcmp(manip, "x") == 0) {
                 result = 06;
             } else {
-                //TODO: error
+                 printf("Error in MODE -> +\n");
             }
             
             break;
@@ -99,7 +89,7 @@ int checkMode(char* mode, int permission)
             } else if (strcmp(manip, "x") == 0) {
                 result = 01;
             } else {
-                //TODO: error
+                printf("Error in MODE -> +\n");
             }
             break;
         }
@@ -108,21 +98,21 @@ int checkMode(char* mode, int permission)
         case '=':
          {
             if (strcmp(manip, "rwx") == 0) {
-                result = 07;
+                result = 7;
             } else if (strcmp(manip, "rw") == 0) {
-                result = 06;
+                result = 6;
             } else if (strcmp(manip, "rx") == 0) {
-                result = 05;
+                result = 5;
             } else if (strcmp(manip, "r") == 0) {
-                result = 04;
+                result = 4;
             } else if (strcmp(manip, "wx") == 0) {
-                result = 03;
+                result = 3;
             } else if (strcmp(manip, "w") == 0) {
-                result = 02;
+                result = 2;
             } else if (strcmp(manip, "x") == 0) {
-                result = 01;
+                result = 1;
             } else {
-                //TODO: error
+                printf("Error in MODE -> =\n");
             }
             break;
         }
@@ -130,26 +120,56 @@ int checkMode(char* mode, int permission)
             break;
     }
 
-
-    if (mode[0] == 'u'){ //1 7 7 7
-   
-        
-       
-    } else if (mode[0] == 'g'){
-        result *= 10;
-    } else if (mode[0] == 'o'){
-        //do nothing
-        result *= 10;
-    } else if (mode[0] == 'a'){
-        result += result*100 + result*10;
-    } else {
-        //TODO: error
-
-    }
-
     return result;
 }
 
+
+
+int checkMode(char* mode, int permission)
+{   
+    printf("MODE -> %s\n", mode);
+    int result = 00;
+    char* manip = &mode[2];         // acepts following characters
+
+    printf("MODE -> %s; length -> %ld\n", manip, strlen(manip));
+    printf("MODE -> %s; mode[0] -> %c; mode[1] -> %c; manip -> %s\n", mode, mode[0], mode[1], manip);
+    if (mode[0] == 'u'){ //1 7 7 7
+        if (mode[1] == '='){
+            result = checkPermissions(mode, manip)*100;
+        } else {
+
+        }
+        //result *= 100;
+    } else if (mode[0] == 'g'){
+        if (mode[1] == '='){
+            printf("HERE\n");
+            result = checkPermissions(mode, manip)*10;
+            printf("%d\n", result);
+        } else {
+
+        }
+        //result *= 10;
+    } else if (mode[0] == 'o'){
+        if (mode[1] == '='){
+            result = checkPermissions(mode, manip);
+        } else {
+
+        }
+        //do nothing
+    } else if (mode[0] == 'a'){
+        if (mode[1] == '='){
+            result += checkPermissions(mode, manip) + checkPermissions(mode, manip)*100 + checkPermissions(mode, manip)*10;
+        } else {
+
+        }
+        //result += result*100 + result*10;
+    } else {
+        //TODO: error
+    }
+
+    return result;
+    
+}
 
 
 int main(int argc, char *argv[])
@@ -160,15 +180,18 @@ int main(int argc, char *argv[])
 
     char mode[100]; 
     strcpy(mode,argv[2]);
-
     char *endptr;
     char buf[100];
     strcpy(buf,argv[3]);
+    
+    int permission = getChmod(buf);
+
     int i;
     i = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
-    int permission = getChmod(buf);
     if (endptr == mode)        // Not a number - MODE
         i = checkMode(mode, permission);
+    printf("%d\n", i);
+    
     if (chmod (buf, i) < 0)
     {
         fprintf(stderr, "%s: error in chmod(%s, %s) - %d (%s)\n",
@@ -176,51 +199,10 @@ int main(int argc, char *argv[])
         exit(1);
     }
     printf("Permission changed with success.\n");
-    
 
     return 0;
 }
     
-    /*char mode[100]; 
-    strcpy(mode,argv[2]);
-
-    if (isdigit(mode[0])) // mode is a number - MODE-OCTAL
-    {
-        char path[100];
-        strcpy(path,argv[3]);
-        int i;
-        i = strtol(mode, 0, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
-        if (chmod (path, i) < 0)
-        {
-            fprintf(stderr, "%s: error in chmod(%s, %s) - %d (%s)\n",
-                    argv[0], path, mode, errno, strerror(errno));
-            exit(1);
-        }
-        printf("Permission changed with success.\n");
-        
-    }
-
-    else if (isalpha(mode[0])) // mode is a string - MODE 
-    {
-
-        char path[100];
-        strcpy(path,argv[3]);
-
-    
-        if (chmod (path, mode) < 0)
-        {
-            fprintf(stderr, "%s: error in chmod(%s, %s) - %d (%s)\n",
-                    argv[0], path, mode, errno, strerror(errno));
-            exit(1);
-        }
-        printf("Permission changed with success.\n");
-
-    } else {
-       
-    }
-
-    return 0;*/
-
 
 //1777 -> -rwxrwxrwt (todas as permissões privado -> utilizador necessita exe permissions)
 //7777 -> publico
