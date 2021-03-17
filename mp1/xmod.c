@@ -6,33 +6,18 @@
 #include <ctype.h>
 
 
-int convertDecimalToOctal(int decimalNumber)
-{
-    int octalNumber = 0, i = 1;
-
-    while (decimalNumber != 0)
-    {
-        octalNumber += (decimalNumber % 8) * i;
-        decimalNumber /= 8;
-        i *= 10;
-    }
-
-    return octalNumber;
-}
-
 int getChmod(const char *path){
     struct stat ret;
-    int octal_mode;
     printf("path: %s\n", path);
     
     if (stat(path, &ret) == -1) {
         return -1;
     }
-    
-    octal_mode = convertDecimalToOctal(ret.st_mode)%10000;
-    printf("%d\n", octal_mode);
-    
-    return octal_mode;
+    //bits is an octal number -> we use int but is octal
+    mode_t bits = ret.st_mode%(32768); // 8⁵ -> mode from 101777 to 1777, for example 
+    printf("mode -> %o\n", bits); //print octal, if we use printf("mode -> %d\n", bits); the values are not the same!!
+
+    return bits;
 }
 
 int getOptions(char* option){
@@ -48,76 +33,46 @@ int getOptions(char* option){
 
 int checkPermissions(char*mode, char* manip)
 {
-    int result = 0;
-    switch (mode[1]){
-        case '-':
-        {
-            if (strcmp(manip, "rwx") == 0) {
-                result = 00;
-            } else if (strcmp(manip, "rw") == 0) {
-                result = 01;
-            } else if (strcmp(manip, "rx") == 0) {
-                result = 02;
-            } else if (strcmp(manip, "r") == 0) {
-                result = 03;
-            } else if (strcmp(manip, "wx") == 0) {
-                result = 04;
-            } else if (strcmp(manip, "w") == 0) {
-                result = 05;
-            } else if (strcmp(manip, "x") == 0) {
-                result = 06;
-            } else {
-                 printf("Error in MODE -> +\n");
-            }
-            
-            break;
+    int result = 00;
+    if (mode[1] == '-' || mode[1] == '+')
+    {
+        if (strcmp(manip, "rwx") == 0) {
+            result = 07;
+        } else if (strcmp(manip, "rw") == 0) {
+            result = 06;
+        } else if (strcmp(manip, "rx") == 0) {
+            result = 05;
+        } else if (strcmp(manip, "r") == 0) {
+            result = 04;
+        } else if (strcmp(manip, "wx") == 0) {
+            result = 03;
+        } else if (strcmp(manip, "w") == 0) {
+            result = 02;
+        } else if (strcmp(manip, "x") == 0) {
+            result = 01;
+        } else {
+            printf("Error in MODE: <rwx>\n");
         }
-        case '+':
-        {
-            if (strcmp(manip, "rwx") == 0) {
-                result = 07;
-            } else if (strcmp(manip, "rw") == 0) {
-                result = 06;
-            } else if (strcmp(manip, "rx") == 0) {
-                result = 05;
-            } else if (strcmp(manip, "r") == 0) {
-                result = 04;
-            } else if (strcmp(manip, "wx") == 0) {
-                result = 03;
-            } else if (strcmp(manip, "w") == 0) {
-                result = 02;
-            } else if (strcmp(manip, "x") == 0) {
-                result = 01;
-            } else {
-                printf("Error in MODE -> +\n");
-            }
-            break;
+    } else if (mode[1] == '='){
+        if (strcmp(manip, "rwx") == 0) {
+            result = 07;
+        } else if (strcmp(manip, "rw") == 0) {
+            result = 06;
+        } else if (strcmp(manip, "rx") == 0) {
+            result = 05;
+        } else if (strcmp(manip, "r") == 0) {
+            result = 04;
+        } else if (strcmp(manip, "wx") == 0) {
+            result = 03;
+        } else if (strcmp(manip, "w") == 0) {
+            result = 02;
+        } else if (strcmp(manip, "x") == 0) {
+            result = 01;
+        } else {
+            printf("Error in MODE: <rwx>\n");
         }
-
-       
-        case '=':
-         {
-            if (strcmp(manip, "rwx") == 0) {
-                result = 7;
-            } else if (strcmp(manip, "rw") == 0) {
-                result = 6;
-            } else if (strcmp(manip, "rx") == 0) {
-                result = 5;
-            } else if (strcmp(manip, "r") == 0) {
-                result = 4;
-            } else if (strcmp(manip, "wx") == 0) {
-                result = 3;
-            } else if (strcmp(manip, "w") == 0) {
-                result = 2;
-            } else if (strcmp(manip, "x") == 0) {
-                result = 1;
-            } else {
-                printf("Error in MODE -> =\n");
-            }
-            break;
-        }
-        default:
-            break;
+    } else {
+        printf("Error in MODE: <-|+|=>\n");
     }
 
     return result;
@@ -129,42 +84,36 @@ int checkMode(char* mode, int permission)
 {   
     printf("MODE -> %s\n", mode);
     int result = 00;
-    char* manip = &mode[2];         // acepts following characters
-
-    printf("MODE -> %s; length -> %ld\n", manip, strlen(manip));
-    printf("MODE -> %s; mode[0] -> %c; mode[1] -> %c; manip -> %s\n", mode, mode[0], mode[1], manip);
-    if (mode[0] == 'u'){ //1 7 7 7
+    char* manip = &mode[2];         // acepts mode[2] and following characters
+    
+    //printf("MODE -> %s; length -> %ld\n", manip, strlen(manip));
+    //printf("MODE -> %s; mode[0] -> %c; mode[1] -> %c; manip -> %s\n", mode, mode[0], mode[1], manip);
+    if (mode[0] == 'u'){
         if (mode[1] == '='){
-            result = checkPermissions(mode, manip)*100;
+            result = checkPermissions(mode, manip)*64;
         } else {
-
+            result = permission ^ (checkPermissions(mode, manip)*64);
         }
-        //result *= 100;
     } else if (mode[0] == 'g'){
         if (mode[1] == '='){
-            printf("HERE\n");
-            result = checkPermissions(mode, manip)*10;
-            printf("%d\n", result);
+            result = checkPermissions(mode, manip)*8;
         } else {
-
+            result = permission ^ (checkPermissions(mode, manip)*8);
         }
-        //result *= 10;
     } else if (mode[0] == 'o'){
         if (mode[1] == '='){
             result = checkPermissions(mode, manip);
         } else {
-
+            result = permission ^ checkPermissions(mode, manip);
         }
-        //do nothing
     } else if (mode[0] == 'a'){
         if (mode[1] == '='){
-            result += checkPermissions(mode, manip) + checkPermissions(mode, manip)*100 + checkPermissions(mode, manip)*10;
+            result = checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64;
         } else {
-
+            result = permission ^ (checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64);
         }
-        //result += result*100 + result*10;
     } else {
-        //TODO: error
+        printf("Error in user: <u|g|o|a>\n");
     }
 
     return result;
@@ -190,7 +139,8 @@ int main(int argc, char *argv[])
     i = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
     if (endptr == mode)        // Not a number - MODE
         i = checkMode(mode, permission);
-    printf("%d\n", i);
+    
+    printf("%o\n", i);
     
     if (chmod (buf, i) < 0)
     {
