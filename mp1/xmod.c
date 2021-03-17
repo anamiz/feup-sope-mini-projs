@@ -4,6 +4,10 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <time.h>
+#include <fcntl.h>
+ #include <unistd.h>
+
 
 
 int getChmod(const char *path){
@@ -81,7 +85,79 @@ int checkPermissions(char*mode, char* manip)
     return result;
 }
 
+int countExecutionTime(){
+    //instant
+    clock_t end = clock();
+    double time_spent = (double)(end) / 60; //use begin?
+    return time_spent;
 
+}
+
+char * selectEvent(int pid){
+    //events
+    enum events
+    {
+        PROC_CREAT,  //consists of fork, exec and wait
+        PROC_EXIT,  //exit
+        SIGNAL_RECV,
+        SIGNAL_SENT,
+        FILE_MODF
+    };
+
+    typedef enum events event_type;
+
+    event_type a = PROC_EXIT;
+    return a;
+
+}
+
+int getInfo(){
+    return 1;
+}
+
+int writeRecords(){
+    char *filename;
+    //user sets filename: export LOG_FILENAME='filename' (incluir pelicas) no terminal
+    filename = getenv("LOG_FILENAME");   //check if variable LOG-FILENAME is set
+    if (filename != NULL) {
+        printf("Filename: %s\n",filename);
+        size_t filedesc = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0777); //TODO: truncate can be problematic//(create file if it does not exist, else truncate)
+        if(filedesc < 0)      //open returns -1 upon failure
+            printf("Error opening file.");
+
+        char buf[1024];
+
+       //instant
+        double time_spent = countExecutionTime();
+        //pid
+        pid_t pid = getpid();
+
+        //events
+        char * event = selectEvent(pid);
+
+        //information
+        int getInfo(event);
+
+        int count;
+        //snprintf formates and stores chars in buf, 2nd arg = max_num_chars
+        count = snprintf(buf, 1000, "%f\n",time_spent);
+        write(filedesc, buf, count);  //write instant to filename
+        printf("time spent: %s",buf);
+
+        count = snprintf(buf, 1000, "%d",pid); 
+        write(filedesc, buf, count);  //write pid to filename       
+        printf("%s\n",buf);
+
+        count = snprintf(buf, 1000, "%s", event);
+        write(filedesc, buf, count);  //write pid to filename
+        printf("%s\n",buf);
+
+        if(close(filedesc) < 0) 
+            printf("Error closing file."); //returns -1 if insuccess
+
+    }
+    return 0;
+}
 
 int checkMode(char* mode, int permission)
 {   
@@ -126,6 +202,7 @@ int checkMode(char* mode, int permission)
 
 int main(int argc, char *argv[])
 {   
+    clock_t begin = clock();  
     char option[100];
     strcpy(option,argv[1]);
     //printf("%s, %s, %s, %s\n", argv[0], argv[1], argv[2], argv[3]);
@@ -133,9 +210,11 @@ int main(int argc, char *argv[])
     char mode[100]; 
     strcpy(mode,argv[2]);
     char *endptr;
+    writeRecords(); 
+
     char buf[100];
     strcpy(buf,argv[3]);
-    
+   
     int permission = getChmod(buf);
 
     int i;
@@ -151,6 +230,7 @@ int main(int argc, char *argv[])
                 argv[0], buf, mode, errno, strerror(errno));
         exit(1);
     }
+   
     //printf("Permission changed with success.\n");
     getOptions(buf, option, permission, i);
 
