@@ -8,24 +8,27 @@
 
 int getChmod(const char *path){
     struct stat ret;
-    printf("path: %s\n", path);
+    //printf("path: %s\n", path);
     
     if (stat(path, &ret) == -1) {
         return -1;
     }
     //bits is an octal number -> we use int but is octal
     mode_t bits = ret.st_mode%(32768); // 8⁵ -> mode from 101777 to 1777, for example 
-    printf("mode -> %o\n", bits); //print octal, if we use printf("mode -> %d\n", bits); the values are not the same!!
+    //printf("mode -> %o\n", bits); //print octal, if we use printf("mode -> %d\n", bits); the values are not the same!!
 
     return bits;
 }
 
-int getOptions(char* option){
-    if (option[0] == '-' ){
-        if (option[1] == 'c'|| option[1] == 'v' ||option[1] == 'R' ){
-            return 0;
-        }
-    } 
+//TODO - apresentar entre parênteses de cada option o que equivale em cada -> (-rwxrwxrwx), por exemplo
+int getOptions(const char *path, char* option, int previous_permission, int permission){
+    if (strcmp(option, "-v") == 0){
+        printf("mode of '%s' retained as %o ()\n", path, permission);
+    } else if (strcmp(option, "-c") == 0){
+        printf("mode of '%s' changed from %o () to %o ()\n", path, previous_permission, permission);
+    } else if (strcmp(option, "-R") == 0){
+        //TODO
+    }
     printf("Error in option.");
     return 1;
 }
@@ -82,10 +85,10 @@ int checkPermissions(char*mode, char* manip)
 
 int checkMode(char* mode, int permission)
 {   
-    printf("MODE -> %s\n", mode);
+    //printf("MODE -> %s\n", mode);
     int result = 00;
     char* manip = &mode[2];         // acepts mode[2] and following characters
-    
+
     //printf("MODE -> %s; length -> %ld\n", manip, strlen(manip));
     //printf("MODE -> %s; mode[0] -> %c; mode[1] -> %c; manip -> %s\n", mode, mode[0], mode[1], manip);
     if (mode[0] == 'u'){
@@ -140,7 +143,7 @@ int main(int argc, char *argv[])
     if (endptr == mode)        // Not a number - MODE
         i = checkMode(mode, permission);
     
-    printf("%o\n", i);
+    //printf("%o\n", i);
     
     if (chmod (buf, i) < 0)
     {
@@ -148,7 +151,8 @@ int main(int argc, char *argv[])
                 argv[0], buf, mode, errno, strerror(errno));
         exit(1);
     }
-    printf("Permission changed with success.\n");
+    //printf("Permission changed with success.\n");
+    getOptions(buf, option, permission, i);
 
     return 0;
 }
