@@ -8,7 +8,6 @@
 
 int getChmod(const char *path){
     struct stat ret;
-    //printf("path: %s\n", path);
     
     if (stat(path, &ret) == -1) {
         return -1;
@@ -20,12 +19,57 @@ int getChmod(const char *path){
     return bits;
 }
 
-//TODO - apresentar entre parênteses de cada option o que equivale em cada -> (-rwxrwxrwx), por exemplo
+char* getPrintedMode(int permission){
+    char* final = "";
+    final = malloc(10);
+    char* medium = "";
+    char perm [10];
+    sprintf(perm, "%o", permission);
+    int i, limit = 0;
+    if (strlen(perm) == 4){ //file
+        i = 1;
+        //medium = "-";
+    } else if (strlen(perm) == 5){ //directory
+        i = 2;
+        //medium = "d";
+    } else printf("Error on type of file\n");
+    limit = i + 3;
+    //strcat(final, medium);
+    for (; i < limit; i++){
+        if (perm[i] == '0') {
+            medium = "---";
+        } else if (perm[i] == '1'){
+            medium = "--x";
+        } else if (perm[i] == '2'){
+            medium = "-w-";
+        } else if (perm[i] == '3'){
+            medium = "-wx";
+        } else if (perm[i] == '4'){
+            medium = "r--";
+        } else if (perm[i] == '5'){
+            medium = "r-x";
+        } else if (perm[i] == '6'){
+            medium = "rw-";
+        } else if (perm[i] == '7'){
+            medium = "rwx";
+        }
+        strcat(final, medium);
+    }
+    return final;
+}
+
+
+
+
 int getOptions(const char *path, char* option, int previous_permission, int permission){
     if (strcmp(option, "-v") == 0){
-        printf("mode of '%s' retained as %o ()\n", path, permission);
+        if (previous_permission == permission) return 0;
+        printf("mode of '%s' retained as %o (%s)\n", path, permission, getPrintedMode(permission));
+        return 0;
     } else if (strcmp(option, "-c") == 0){
-        printf("mode of '%s' changed from %o () to %o ()\n", path, previous_permission, permission);
+        if (previous_permission == permission) return 0;
+        printf("mode of '%s' changed from %o (%s) to %o (%s)\n", path, previous_permission, getPrintedMode(previous_permission), permission, getPrintedMode(permission));
+        return 0;
     } else if (strcmp(option, "-R") == 0){
         //TODO
     }
@@ -54,28 +98,31 @@ int checkPermissions(char*mode, char* manip)
         } else if (strcmp(manip, "x") == 0) {
             result = 01;
         } else {
-            printf("Error in MODE: <rwx>\n");
+            printf("xmod: invalid mode: '%s'\n", mode);
+            return -1;
         }
     } else if (mode[1] == '='){
         if (strcmp(manip, "rwx") == 0) {
-            result = 07;
+            result = 00;
         } else if (strcmp(manip, "rw") == 0) {
-            result = 06;
-        } else if (strcmp(manip, "rx") == 0) {
-            result = 05;
-        } else if (strcmp(manip, "r") == 0) {
-            result = 04;
-        } else if (strcmp(manip, "wx") == 0) {
-            result = 03;
-        } else if (strcmp(manip, "w") == 0) {
-            result = 02;
-        } else if (strcmp(manip, "x") == 0) {
             result = 01;
+        } else if (strcmp(manip, "rx") == 0) {
+            result = 02;
+        } else if (strcmp(manip, "r") == 0) {
+            result = 03;
+        } else if (strcmp(manip, "wx") == 0) {
+            result = 04;
+        } else if (strcmp(manip, "w") == 0) {
+            result = 05;
+        } else if (strcmp(manip, "x") == 0) {
+            result = 06;
         } else {
-            printf("Error in MODE: <rwx>\n");
+            printf("xmod: invalid mode: '%s'\n", mode);
+            return -1;
         }
     } else {
-        printf("Error in MODE: <-|+|=>\n");
+        printf("xmod: invalid mode: '%s'\n", mode);
+        return -1;
     }
 
     return result;
@@ -85,38 +132,19 @@ int checkPermissions(char*mode, char* manip)
 
 int checkMode(char* mode, int permission)
 {   
-    //printf("MODE -> %s\n", mode);
     int result = 00;
     char* manip = &mode[2];         // acepts mode[2] and following characters
-
-    //printf("MODE -> %s; length -> %ld\n", manip, strlen(manip));
-    //printf("MODE -> %s; mode[0] -> %c; mode[1] -> %c; manip -> %s\n", mode, mode[0], mode[1], manip);
     if (mode[0] == 'u'){
-        if (mode[1] == '='){
-            result = checkPermissions(mode, manip)*64;
-        } else {
-            result = permission ^ (checkPermissions(mode, manip)*64);
-        }
+        result = permission ^ (checkPermissions(mode, manip)*64);
     } else if (mode[0] == 'g'){
-        if (mode[1] == '='){
-            result = checkPermissions(mode, manip)*8;
-        } else {
-            result = permission ^ (checkPermissions(mode, manip)*8);
-        }
+        result = permission ^ (checkPermissions(mode, manip)*8);
     } else if (mode[0] == 'o'){
-        if (mode[1] == '='){
-            result = checkPermissions(mode, manip);
-        } else {
-            result = permission ^ checkPermissions(mode, manip);
-        }
+        result = permission ^ checkPermissions(mode, manip);
     } else if (mode[0] == 'a'){
-        if (mode[1] == '='){
-            result = checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64;
-        } else {
-            result = permission ^ (checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64);
-        }
+        result = permission ^ (checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64);
     } else {
-        printf("Error in user: <u|g|o|a>\n");
+        printf("xmod: invalid mode: '%s'\n", mode);
+        return -1;
     }
 
     return result;
@@ -137,13 +165,10 @@ int main(int argc, char *argv[])
     strcpy(buf,argv[3]);
     
     int permission = getChmod(buf);
-
     int i;
     i = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
     if (endptr == mode)        // Not a number - MODE
         i = checkMode(mode, permission);
-    
-    //printf("%o\n", i);
     
     if (chmod (buf, i) < 0)
     {
@@ -153,7 +178,6 @@ int main(int argc, char *argv[])
     }
     //printf("Permission changed with success.\n");
     getOptions(buf, option, permission, i);
-
     return 0;
 }
     
