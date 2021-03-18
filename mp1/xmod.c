@@ -104,15 +104,15 @@ int checkPermissions(char*mode, char* manip)
     int result = 00;
     if (mode[1] == '-' || mode[1] == '+')
     {
-        if (strcmp(manip, "rwx") == 0) {
+        if ((strcmp(manip, "rwx") == 0) || (strcmp(manip, "rxw") == 0) || (strcmp(manip, "xrw") == 0) || (strcmp(manip, "xwr") == 0) || (strcmp(manip, "wrx") == 0) || (strcmp(manip, "wxr") == 0)) {
             result = 07;
-        } else if (strcmp(manip, "rw") == 0) {
+        } else if ((strcmp(manip, "rw") == 0) || (strcmp(manip, "wr") == 0)) {
             result = 06;
-        } else if (strcmp(manip, "rx") == 0) {
+        } else if ((strcmp(manip, "rx") == 0) || (strcmp(manip, "xr") == 0)) {
             result = 05;
         } else if (strcmp(manip, "r") == 0) {
             result = 04;
-        } else if (strcmp(manip, "wx") == 0) {
+        } else if ((strcmp(manip, "wx") == 0) || (strcmp(manip, "xw") == 0)) {
             result = 03;
         } else if (strcmp(manip, "w") == 0) {
             result = 02;
@@ -123,15 +123,15 @@ int checkPermissions(char*mode, char* manip)
             return -1;
         }
     } else if (mode[1] == '='){
-        if (strcmp(manip, "rwx") == 0) {
+        if ((strcmp(manip, "rwx") == 0) || (strcmp(manip, "rxw") == 0) || (strcmp(manip, "xrw") == 0) || (strcmp(manip, "xwr") == 0) || (strcmp(manip, "wrx") == 0) || (strcmp(manip, "wxr") == 0)) {
             result = 00;
-        } else if (strcmp(manip, "rw") == 0) {
+        } else if ((strcmp(manip, "rw") == 0) || (strcmp(manip, "wr") == 0)) {
             result = 01;
-        } else if (strcmp(manip, "rx") == 0) {
+        } else if ((strcmp(manip, "rx") == 0) || (strcmp(manip, "xr") == 0)) {
             result = 02;
         } else if (strcmp(manip, "r") == 0) {
             result = 03;
-        } else if (strcmp(manip, "wx") == 0) {
+        } else if ((strcmp(manip, "wx") == 0) || (strcmp(manip, "xw") == 0)) {
             result = 04;
         } else if (strcmp(manip, "w") == 0) {
             result = 05;
@@ -268,8 +268,6 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     new_permission = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
     if (endptr == mode)        // Not a number - MODE
         new_permission = checkMode(mode, permission);
-
-    getOptions(buf, option, permission, new_permission);
     
     if (chmod (buf, new_permission) < 0)
     {
@@ -277,6 +275,8 @@ int changePerms(char* option, char *mode, char *buf, int permission){
                 "./xmod", buf, mode, errno, strerror(errno));
         exit(1);
     }
+
+    getOptions(buf, option, permission, new_permission);
     
     return 0;
 }
