@@ -8,7 +8,7 @@
 #include <sys/times.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <signal.h>
 
 enum events
 {
@@ -24,6 +24,8 @@ typedef enum events event_type;
 struct tms * time_struct;
 clock_t begin_time;
 int old_permission;
+
+pid_t pid;
 
 int getChmod(const char *path){
     struct stat ret;
@@ -76,7 +78,6 @@ char* getPrintedMode(int permission){
     }
     return final;
 }
-
 
 
 
@@ -175,29 +176,29 @@ char * getEventInfo(event_type events, pid_t pid, int sig, int argc, char *argv[
     char buf[10000];
     switch(events){
         case PROC_CREAT:
-            snprintf(buf, 1024, "%s\n","PROC_CREAT");
+            snprintf(buf, 1024, "%s ; ","PROC_CREAT");
             for (size_t i; i < argc; i++){
                 snprintf(buf + strlen(buf), 1024, "%s\n", argv[i]);
             };
             break;
 
         case PROC_EXIT:
-            snprintf(buf, 1024, "%s\n","PROC_EXIT");
+            snprintf(buf, 1024, "%s ; ","PROC_EXIT");
             snprintf(buf+strlen(buf), 1024, "%d\n", sig);
             break;
 
         case SIGNAL_RECV:
-            snprintf(buf, 1024, "%s\n","SIGNAL_RECV");
+            snprintf(buf, 1024, "%s ; ","SIGNAL_RECV");
             snprintf(buf+strlen(buf), 1024, "%d\n", sig);
             break;
 
         case SIGNAL_SENT:
-            snprintf(buf, 1024, "%s\n","SIGNAL_SENT");
+            snprintf(buf, 1024, "%s ; ","SIGNAL_SENT");
             snprintf(buf+strlen(buf), 1024, "%d : %d\n", sig, pid);
             break;
 
         case FILE_MODF:
-            snprintf(buf, 1024, "%s\n","FILE_MODF");
+            snprintf(buf, 1024, "%s ; ","FILE_MODF");
             char path[1000];
             strcpy(path, argv[argc-1]);
             snprintf(buf+strlen(buf), 1024, "%s : %o : %o\n", path, old_permission, current_permission);
@@ -240,15 +241,15 @@ int writeRecords(event_type event, int sig, int argc, char *argv[]){
 
         int count;
         //snprintf formates and stores chars in buf, 2nd arg = max_num_chars
-        count = snprintf(buf, 1000, "%f\n",time_spent);
+        count = snprintf(buf, 1000, "%f ; ",time_spent);
         write(filedesc, buf, count);  //write instant to filename
-        printf("time spent: %s",buf);
+        printf("time spent: %s\n",buf);
 
-        count = snprintf(buf, 1000, "%d\n",pid); 
+        count = snprintf(buf, 1000, "%d ; ",pid); 
         write(filedesc, buf, count);  //write pid to filename       
         printf("%s\n",buf);
 
-        count = snprintf(buf, 1000, "%s\n", event_info);
+        count = snprintf(buf, 1000, "%s", event_info);
         write(filedesc, buf, count);  //write pid to filename
         printf("%s\n",buf);
 
@@ -259,9 +260,60 @@ int writeRecords(event_type event, int sig, int argc, char *argv[]){
     return 0;
 }
 
+static void handler(int signo) {
+    char input;
+    switch(signo)
+    {
+        case SIGINT:
+            if(getpid() == getpgid(getpid())){ //if group id == process id, it is the parent
+                printf("%d ; filename ; ", getpid() ); // filename - global variable
+                printf("nftot: ; "); //number of files already found - global variable
+                printf("nfmod: \n"); //number of files already modified - global variable
 
+                printf("Terminate program (y/n)\n");
+                scanf("%c", &input);
+                char input;
+                do {
+                    if (input == 'y') {
+                        printf("\nProcess terminated.\n");
+                        kill(0, SIGTERM);
+                        exit(0);
+                    }
+                    else if (input == 'n') {
+                        printf("\nProcess will continue.\n");
+                        kill(0, SIGCONT);
+                    }
+                    else {
+                        printf("Enter 'y' to terminate, enter 'n' to proceed.");
+                        scanf("%c", &input);
+                    }
+                } while (input != 'y' && input != 'n');
+            }
+            else {
+                signal(SIGCONT,handler);
+                signal(SIGTERM,handler);
+                pause();
+            }
+            break;
+        default:
+            //write records e envia este sinal
+            break;
+    }
+}
 
 int changePerms(char* option, char *mode, char *buf, int permission){
+    
+    signal(SIGINT, handler);
+    signal(SIGCONT, handler);
+    signal(SIGTERM, handler);
+    signal(SIGQUIT, handler);
+    signal(SIGHUP, handler);
+    signal(SIGUSR1, handler);
+    signal(SIGUSR2, handler);
+    signal(SIGPIPE, handler);
+    signal(SIGALRM, handler);
+    signal(SIGCHLD, handler);
+    
     int new_permission;
     char *endptr;
 
