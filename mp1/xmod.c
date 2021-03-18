@@ -4,11 +4,26 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <ctype.h>
-#include <time.h>
+#include <sys/types.h>
+#include <sys/times.h>
 #include <fcntl.h>
- #include <unistd.h>
+#include <unistd.h>
 
 
+enum events
+{
+    PROC_CREAT,  
+    PROC_EXIT,   
+    SIGNAL_RECV,
+    SIGNAL_SENT,
+    FILE_MODF
+};
+
+typedef enum events event_type;
+
+struct tms * time_struct;
+clock_t begin_time;
+int old_permission;
 
 int getChmod(const char *path){
     struct stat ret;
@@ -31,6 +46,8 @@ int getOptions(const char *path, char* option, int previous_permission, int perm
     } else if (strcmp(option, "-c") == 0){
         printf("mode of '%s' changed from %o () to %o ()\n", path, previous_permission, permission);
     } else if (strcmp(option, "-R") == 0){
+        
+
         //TODO
     }
     printf("Error in option.");
@@ -85,37 +102,50 @@ int checkPermissions(char*mode, char* manip)
     return result;
 }
 
-int countExecutionTime(){
-    //instant
-    clock_t end = clock();
-    double time_spent = (double)(end) / 60; //use begin?
-    return time_spent;
 
-}
-
-char * selectEvent(int pid){
+char * getEventInfo(event_type events, pid_t pid, int sig, int argc, char *argv[], int current_permission){
     //events
-    enum events
-    {
-        PROC_CREAT,  //consists of fork, exec and wait
-        PROC_EXIT,  //exit
-        SIGNAL_RECV,
-        SIGNAL_SENT,
-        FILE_MODF
-    };
+    char buf[10000];
+    switch(events){
+        case PROC_CREAT:
+            snprintf(buf, 1024, "%s\n","PROC_CREAT");
+            for (size_t i; i < argc; i++){
+                snprintf(buf + strlen(buf), 1024, "%s\n", argv[i]);
+            };
+            break;
 
-    typedef enum events event_type;
+        case PROC_EXIT:
+            snprintf(buf, 1024, "%s\n","PROC_EXIT");
+            snprintf(buf+strlen(buf), 1024, "%d\n", sig);
+            break;
 
-    event_type a = PROC_EXIT;
-    return a;
+        case SIGNAL_RECV:
+            snprintf(buf, 1024, "%s\n","SIGNAL_RECV");
+            snprintf(buf+strlen(buf), 1024, "%d\n", sig);
+            break;
 
+        case SIGNAL_SENT:
+            snprintf(buf, 1024, "%s\n","SIGNAL_SENT");
+            snprintf(buf+strlen(buf), 1024, "%d : %d\n", sig, pid);
+            break;
+
+        case FILE_MODF:
+            snprintf(buf, 1024, "%s\n","FILE_MODF");
+            char path[1000];
+            strcpy(path, argv[argc-1]);
+            snprintf(buf+strlen(buf), 1024, "%s : %o : %o\n", path, old_permission, current_permission);
+            break;
+
+        default:
+            break;
+    }
+    char * buf_cop;
+    buf_cop = buf;
+    return buf_cop;
 }
 
-int getInfo(){
-    return 1;
-}
 
-int writeRecords(){
+int writeRecords(event_type event, int sig, int argc, char *argv[]){
     char *filename;
     //user sets filename: export LOG_FILENAME='filename' (incluir pelicas) no terminal
     filename = getenv("LOG_FILENAME");   //check if variable LOG-FILENAME is set
@@ -128,15 +158,18 @@ int writeRecords(){
         char buf[1024];
 
        //instant
-        double time_spent = countExecutionTime();
+        long int ticks = sysconf(_SC_CLK_TCK); 
+        clock_t end_time = times(time_struct);
+        double time_spent = (double)(end_time - begin_time) / ticks;
+        
         //pid
         pid_t pid = getpid();
 
+        char path[100];
+        strcpy(path,argv[3]);
+        int cur_perm = getChmod(path);
         //events
-        char * event = selectEvent(pid);
-
-        //information
-        int getInfo(event);
+        char * event_info = getEventInfo(event, pid, sig, argc, argv, cur_perm);
 
         int count;
         //snprintf formates and stores chars in buf, 2nd arg = max_num_chars
@@ -144,11 +177,11 @@ int writeRecords(){
         write(filedesc, buf, count);  //write instant to filename
         printf("time spent: %s",buf);
 
-        count = snprintf(buf, 1000, "%d",pid); 
+        count = snprintf(buf, 1000, "%d\n",pid); 
         write(filedesc, buf, count);  //write pid to filename       
         printf("%s\n",buf);
 
-        count = snprintf(buf, 1000, "%s", event);
+        count = snprintf(buf, 1000, "%s\n", event_info);
         write(filedesc, buf, count);  //write pid to filename
         printf("%s\n",buf);
 
@@ -199,41 +232,47 @@ int checkMode(char* mode, int permission)
     
 }
 
-
-int main(int argc, char *argv[])
-{   
-    clock_t begin = clock();  
-    char option[100];
-    strcpy(option,argv[1]);
-    //printf("%s, %s, %s, %s\n", argv[0], argv[1], argv[2], argv[3]);
-
-    char mode[100]; 
-    strcpy(mode,argv[2]);
-    char *endptr;
-    writeRecords(); 
-
-    char buf[100];
-    strcpy(buf,argv[3]);
-   
-    int permission = getChmod(buf);
-
+int changePerms(char* option, char *mode, char *buf, int permission){
     int i;
+    char *endptr;
+
     i = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
     if (endptr == mode)        // Not a number - MODE
         i = checkMode(mode, permission);
+
+    getOptions(buf, option, permission, i);
     
     //printf("%o\n", i);
     
     if (chmod (buf, i) < 0)
     {
         fprintf(stderr, "%s: error in chmod(%s, %s) - %d (%s)\n",
-                argv[0], buf, mode, errno, strerror(errno));
+                "./xmod", buf, mode, errno, strerror(errno));
         exit(1);
     }
-   
-    //printf("Permission changed with success.\n");
-    getOptions(buf, option, permission, i);
+    
+    return 0;
+}
 
+int main(int argc, char *argv[])
+{   
+    begin_time = times(time_struct);
+    char option[100];
+    strcpy(option,argv[1]);
+    //printf("%s, %s, %s, %s\n", argv[0], argv[1], argv[2], argv[3]);
+
+    char mode[100]; 
+    strcpy(mode,argv[2]);
+   
+    char buf[100];
+    strcpy(buf,argv[3]);
+   
+    old_permission = getChmod(buf);
+    int permission = getChmod(buf);
+
+    changePerms(option, mode, buf, permission);   
+    //printf("Permission changed with success.\n");
+    writeRecords(FILE_MODF, 1, argc, argv);  
     return 0;
 }
     
