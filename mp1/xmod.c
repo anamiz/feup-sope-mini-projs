@@ -24,6 +24,7 @@ typedef enum events event_type;
 struct tms * time_struct;
 clock_t begin_time;
 int old_permission;
+char* filename;
 
 pid_t pid;
 
@@ -265,10 +266,10 @@ static void handler(int signo) {
     switch(signo)
     {
         case SIGINT:
-            if(getpid() == getpgid(getpid())){ //if group id == process id, it is the parent
-                printf("%d ; filename ; ", getpid() ); // filename - global variable
-                printf("nftot: ; "); //number of files already found - global variable
-                printf("nfmod: \n"); //number of files already modified - global variable
+            if (getpid() == getpgid(getpid())){ //if group id == process id, it is the parent
+                printf("%d ; filename ; ", getpid() ); //TO-DO filename - global variable
+                printf("nftot: ; "); //TO-DO number of files already found - global variable
+                printf("nfmod: \n"); //TO-DO number of files already modified - global variable
 
                 printf("Terminate program (y/n)\n");
                 scanf("%c", &input);
@@ -303,17 +304,6 @@ static void handler(int signo) {
 
 int changePerms(char* option, char *mode, char *buf, int permission){
     
-    signal(SIGINT, handler);
-    signal(SIGCONT, handler);
-    signal(SIGTERM, handler);
-    signal(SIGQUIT, handler);
-    signal(SIGHUP, handler);
-    signal(SIGUSR1, handler);
-    signal(SIGUSR2, handler);
-    signal(SIGPIPE, handler);
-    signal(SIGALRM, handler);
-    signal(SIGCHLD, handler);
-    
     int new_permission;
     char *endptr;
 
@@ -335,6 +325,18 @@ int changePerms(char* option, char *mode, char *buf, int permission){
 
 int main(int argc, char *argv[])
 {   
+    signal(SIGINT, handler);
+    signal(SIGCONT, handler);
+    signal(SIGTERM, handler);
+    signal(SIGQUIT, handler);
+    signal(SIGHUP, handler);
+    signal(SIGUSR1, handler);
+    signal(SIGUSR2, handler);
+    signal(SIGPIPE, handler);
+    signal(SIGALRM, handler);
+    signal(SIGCHLD, handler);
+    
+
     begin_time = times(time_struct);
     char option[100];
     strcpy(option,argv[1]);
@@ -344,6 +346,7 @@ int main(int argc, char *argv[])
     strcpy(mode,argv[2]);
    
     char buf[100];
+    filename = argv[3];
     strcpy(buf,argv[3]);
    
     old_permission = getChmod(buf);
