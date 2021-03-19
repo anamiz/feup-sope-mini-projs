@@ -62,7 +62,7 @@ char* getPrintedMode(int permission){
     } else if (strlen(perm) == 5){ //directory
         i = 2;
         //medium = "d";
-    } else printf("Error on type of file\n");
+    } //else printf("Error on type of file\n");
     limit = i + 3;
     //strcat(final, medium);
     for (; i < limit; i++){
@@ -374,7 +374,7 @@ int changePerms(char* option, char *mode, char *buf, int permission){
 
     if (endptr == mode)        // Not a number - MODE
         new_permission = checkMode(mode, permission);
-    else if (mode[0] != '0') { //OCTAL must start with '0'
+    else if (mode[0] != '0' && strlen(mode) == 4) { //OCTAL must start with '0'
         printf("\nOctal-mode permission must start with a '0'.\n");
         exit(0);
     }
@@ -518,8 +518,6 @@ int main(int argc, char *argv[])
     }
 
     old_permission = getChmod(buf); // TO-DO chmod returnin 41777 instead of 1777
-    printf("\nbuf: ");
-    printf(buf);
 
     if(option[1]=='R'){
         changeDirPerms(argc, argv);
