@@ -13,7 +13,9 @@ Familiarização com a programação de interação com um sistema operativo, en
 
 ## Observações
 
-# Autoria
+## Autoria
 [Luísa Marques](https://github.com/aluisamarques)
+
 [Sofia Teixeira](https://github.com/s0fiateixeira)
+
 [Margarida Oliveira](https://github.com/margaridarro)
