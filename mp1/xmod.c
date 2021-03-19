@@ -62,7 +62,7 @@ char* getPrintedMode(int permission){
     } else if (strlen(perm) == 5){ //directory
         i = 2;
         //medium = "d";
-    } else printf("Error on type of file\n");
+    } //else printf("Error on type of file\n");
     limit = i + 3;
     //strcat(final, medium);
     for (; i < limit; i++){
@@ -259,7 +259,7 @@ char * getEventInfo(event_type events, int sig, int current_permission){
 
         case SIGNAL_SENT:
             snprintf(buf, 1024, "%s ; ","SIGNAL_SENT");
-            snprintf(buf+strlen(buf), 1024, "%d : %d\n", sig, pid);
+            snprintf(buf+strlen(buf), 1024, "%d : %d\n", sig, getpid());
             break;
 
         case FILE_MODF:
@@ -273,16 +273,6 @@ char * getEventInfo(event_type events, int sig, int current_permission){
     char * buf_cop;
     buf_cop = buf;
     return buf_cop;
-}
-
-void initFile(){
-    filename = getenv("LOG_FILENAME");   //check if variable LOG-FILENAME is set
-    if (filename != NULL) {
-        size_t filedesc = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0777);
-    if(close(filedesc) < 0) 
-            printf("Error closing file."); //returns -1 if insuccess
-
-    }
 }
 
 int writeRecords(event_type event, pid_t cur_pid, int sig){
@@ -299,24 +289,33 @@ int writeRecords(event_type event, pid_t cur_pid, int sig){
        //instant
         long int ticks = sysconf(_SC_CLK_TCK); 
         clock_t end_time = times(time_struct);
-        double time_spent = (double)(end_time - begin_time) / ticks;
+        double time_spent = (double)(end_time - begin_time) / ticks * 60;
 
         int cur_perm = getChmod(path_name);
         //events
         char * event_info = getEventInfo(event, sig, cur_perm);
 
+        if(event == SIGNAL_SENT){
+            cur_pid = pid;
+        }
+
         int count;
         //snprintf formates and stores chars in buf, 2nd arg = max_num_chars
-        count = snprintf(buf, 1000, "%f ; ",time_spent);
+        count = snprintf(buf, 1000, "%4.5f ; ",time_spent);
         write(filedesc, buf, count);  //write instant to filename
-        printf("%s ; ",buf);
+        printf("%s ",buf);
 
         count = snprintf(buf, 1000, "%d ; ",cur_pid); 
         write(filedesc, buf, count);  //write pid to filename       
-        printf("%s ; ",buf);
+        printf("%s",buf);
+
         count = snprintf(buf, 1000, "%s", event_info);
-        write(filedesc, buf, count);  //write pid to filename
-        printf("%s\n",buf);
+        printf("%s",buf);
+
+        write(filedesc, buf, count);  //write event info to filename
+
+        //count = snprintf(buf, 1000, "%s","\n");
+        //write(filedesc, buf, count);
 
         if(close(filedesc) < 0) 
             printf("Error closing file."); //returns -1 if insuccess
@@ -325,15 +324,28 @@ int writeRecords(event_type event, pid_t cur_pid, int sig){
     return 0;
 }
 
+void initFile(){
+    filename = getenv("LOG_FILENAME");   //check if variable LOG-FILENAME is set
+    if (filename != NULL) {
+        size_t filedesc = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0777);
+    if(close(filedesc) < 0) 
+            printf("Error closing file."); //returns -1 if insuccess
+
+    }
+}
+
+
+
 void sigHandler(int signo) { 
     char input;
+    writeRecords(SIGNAL_SENT, getpid(),signo); 
     switch(signo)
     {
         case SIGINT:
             if (getpid() == getpgrp()){ //if group id == process id, it is the parent
-                printf("\n%d ; %s ;",getpid(),path_name); //TO-DO filename - global variable
-                printf(" nftot: %d ;",nftot); //TO-DO number of files already found - global variable
-                printf(" nfmod: %d \n", nfmod); //TO-DO number of files already modified - global variable
+                printf("\n%d ; %s ;",getpid(),path_name); 
+                printf(" nftot: %d ;",nftot); 
+                printf(" nfmod: %d \n", nfmod); 
                 printf("Terminate program (y/n)\n");
                 scanf("%c", &input);
               
@@ -341,19 +353,21 @@ void sigHandler(int signo) {
                     if (input == 'y') {
                         printf("\nProcess terminated.\n");
                         kill(0, SIGTERM);
-                        writeRecords(PROC_EXIT, getpid(), SIGTERM );
+                        writeRecords(PROC_EXIT, getpid(), SIGTERM);
                         exit(0);
                     }
                     else if (input == 'n') {
                         printf("\nProcess will continue.\n");
-                        kill(0, SIGCONT);
-                        //writeRecords();                        
-                        input = '0';
+                        kill(0, SIGCONT);     
+                        writeRecords(PROC_EXIT, getpid(), SIGCONT);
+                        input = '0';               
                     }
                     else {
                         printf("Enter 'y' to terminate, enter 'n' to proceed.");
                         scanf("%c", &input);
                     }
+                    signal(SIGINT,sigHandler);
+
                 } while (input != 'y' && input != 'n');
             }
             else {
@@ -362,8 +376,17 @@ void sigHandler(int signo) {
                 pause();
             }
             break;
+        case SIGCONT: 
+            writeRecords(SIGNAL_SENT, getpid(),signo);
+            writeRecords(SIGNAL_RECV,getpid(),signo);
+            break;
+        case SIGTERM:
+            writeRecords(SIGNAL_SENT, getpid(),signo);
+            writeRecords(SIGNAL_RECV,getpid(),signo);
+            exit(0);
+            break;
         default:
-            //write records e envia este sinal
+            writeRecords(SIGNAL_RECV,getpid(),signo);
             break;
     }
 }
@@ -390,14 +413,13 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     if(permission != new_permission) nfmod++;
 
     getOptions(buf, option, permission, new_permission);
+
+    writeRecords(FILE_MODF,getpid(),new_permission);
     
     return 0;
 }
 
-
-
-int changeDirPerms(int argc, char *argv[])
-{
+int changeDirPerms(int argc, char *argv[]){ //AMGS PODEM ME AJUDAR PARA EU PODER IR DORMIR AS 19 POR FAVOR OBG BJ SBJSBSJS BSJ
     int id;
     DIR *dir_desc;
     struct dirent * dir;
@@ -412,12 +434,12 @@ int changeDirPerms(int argc, char *argv[])
 
     char buf[100];
     
-    old_permission = getChmod(argv[argc-1]);    
+    old_permission = getChmod(argv[argc-1]);    //okok
 
     changePerms(option, mode, argv[argc-1], old_permission);
 
-    if ((dir_desc = opendir(argv[argc-1])) == NULL)
-        return 0; //opendir(path) -> last argument of argv is path
+    if ((dir_desc = opendir(argv[argc-1])) == NULL) 
+        exit(0);   //opendir(path) -> last argument of argv is path
 
   
     while ((dir = readdir(dir_desc)) != NULL) { //copy to args all the elements in argv     
@@ -448,21 +470,22 @@ int changeDirPerms(int argc, char *argv[])
 
         if (S_ISDIR(ret.st_mode)){
             id = fork();
-            sleep(300);
-            if(id == 0) {       // filho -
+            sleep(3);
+            if(id == 0) { // filho 
                 strcat(argv[argc - 1], "/");
                 strcat(argv[argc - 1], dir->d_name);
-                execvp("./xmod", argv);
+                execvp("./xmod", argv); 
                 exit(0);
+                writeRecords(PROC_EXIT,getpid(),0);
             }
             if(id < 0){
                 printf("Error\n");
             }
-            else{               //pai
+            else{               
                 count_children++;
             } 
         } else { //it's a file
-            changePerms(option, mode, args[argc-1], old_permission);
+            changePerms(option, mode, args[argc-1], old_permission); 
         }    
     }
     
@@ -478,8 +501,6 @@ int changeDirPerms(int argc, char *argv[])
 
 void initSignals(){
     signal(SIGINT, sigHandler);
-    signal(SIGCONT, sigHandler);
-    signal(SIGTERM, sigHandler);
     signal(SIGQUIT, sigHandler);
     signal(SIGHUP, sigHandler);
     signal(SIGUSR1, sigHandler);
@@ -491,19 +512,19 @@ void initSignals(){
 
 int main(int argc, char *argv[])
 {   
-    initSignals();
-    initFile();
-    argToStr(argc, argv, msg);
-    
     begin_time = times(time_struct);
+    argToStr(argc, argv, msg);
+
+    if(getpid() == getpgrp())
+        initFile();
+
+    writeRecords(PROC_CREAT,getpid(),0);
+    pid = getpid();
+    initSignals();
+
     char option[100];
     strcpy(option,argv[1]);
-    pid = getpid();
     
-
-    //printf("%s, %s, %s, %s\n", argv[0], argv[1], argv[2], argv[3]);
- 
-
     char mode[100]; 
     strcpy(mode,argv[argc-2]);
    
@@ -520,22 +541,16 @@ int main(int argc, char *argv[])
     old_permission = getChmod(buf);
     
     if(option[1]=='R'){
-        changeDirPerms(argc, argv);
+       changeDirPerms(argc, argv);
     }
     else{
         changePerms(option, mode, buf, old_permission);
     }
-    writeRecords(PROC_CREAT,getpid(),1);
 
+    writeRecords(PROC_EXIT, getpid(), 0);
     return 0;
 }
-    //changePerms(option, mode, buf, old_permission);   
-    //printf("Permission changed with success.\n");
-    //writeRecords(FILE_MODF, getpid(),1, argc, argv);  
-  
-
     
-
 //1777 -> -rwxrwxrwt (todas as permissões privado -> utilizador necessita exe permissions)
 //7777 -> publico
 //1177 -> ---xrwxrwt
