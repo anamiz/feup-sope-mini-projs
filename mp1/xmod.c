@@ -55,17 +55,7 @@ char* getPrintedMode(int permission){
     char* medium = "";
     char perm [10];
     sprintf(perm, "%o", permission);
-    int i, limit = 0;
-    if (strlen(perm) == 4){ //file
-        i = 1;
-        //medium = "-";
-    } else if (strlen(perm) == 5){ //directory
-        i = 2;
-        //medium = "d";
-    } //else printf("Error on type of file\n");
-    limit = i + 3;
-    //strcat(final, medium);
-    for (; i < limit; i++){
+    for (int i = 0; i < 3; i++){
         if (perm[i] == '0') {
             medium = "---";
         } else if (perm[i] == '1'){
@@ -90,11 +80,11 @@ char* getPrintedMode(int permission){
 
 int getOptions(const char *path, char* option, int previous_permission, int permission){
     
-    if (strcmp(option, "-v") == 0){
+    if (strcmp(option, "-v" ) == 0 || strcmp(option, "-vR") == 0 || strcmp(option, "-Rv") == 0){
         if (previous_permission == permission) return 0;
         printf("mode of '%s' retained as %o (%s)\n", path, permission, getPrintedMode(permission));
         return 0;
-    } else if (strcmp(option, "-c") == 0){
+    } else if (strcmp(option, "-c") == 0 || strcmp(option, "-vc") == 0 || strcmp(option, "-cv") == 0 || strcmp(option, "-cR") == 0 || strcmp(option, "-Rc") == 0){
         if (previous_permission == permission) return 0;
         printf("mode of '%s' changed from %o (%s) to %o (%s)\n", path, previous_permission, getPrintedMode(previous_permission), permission, getPrintedMode(permission));
         return 0;
@@ -161,7 +151,7 @@ int checkMode(char* mode, int permission)
 {   
     
     int result = 00;
-    char* manip = &mode[2];         // accepts mode[2] and following characters
+    char* manip = &mode[2];   // accepts mode[2] and following characters
     printf("%o", permission);
     printf("\n");
 
