@@ -8,7 +8,9 @@
 #include <sys/times.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <dirent.h>
+#include <stdbool.h>
+#include <sys/wait.h>
 
 enum events
 {
@@ -25,6 +27,8 @@ struct tms * time_struct;
 clock_t begin_time;
 int old_permission;
 
+pid_t pid;
+
 int getChmod(const char *path){
     struct stat ret;
     
@@ -32,7 +36,8 @@ int getChmod(const char *path){
         return -1;
     }
     //bits is an octal number -> we use int but is octal
-    mode_t bits = ret.st_mode%(32768); // 8⁵ -> mode from 101777 to 1777, for example 
+    mode_t bits = ret.st_mode % 32768; 
+    // 8⁵ -> mode from 101777 to 1777, for example 
     //printf("mode -> %o\n", bits); //print octal, if we use printf("mode -> %d\n", bits); the values are not the same!!
 
     return bits;
@@ -78,8 +83,6 @@ char* getPrintedMode(int permission){
 }
 
 
-
-
 int getOptions(const char *path, char* option, int previous_permission, int permission){
     if (strcmp(option, "-v") == 0){
         if (previous_permission == permission) return 0;
@@ -90,9 +93,8 @@ int getOptions(const char *path, char* option, int previous_permission, int perm
         printf("mode of '%s' changed from %o (%s) to %o (%s)\n", path, previous_permission, getPrintedMode(previous_permission), permission, getPrintedMode(permission));
         return 0;
     } else if (strcmp(option, "-R") == 0){
+        printf("Recursive mode.");
         
-
-        //TODO
     }
     printf("Error in option.");
     return 1;
@@ -170,7 +172,7 @@ int checkMode(char* mode, int permission)
     
 }
 
-char * getEventInfo(event_type events, pid_t pid, int sig, int argc, char *argv[], int current_permission){
+char * getEventInfo(event_type events, int sig, int argc, char *argv[], int current_permission){
     //events
     char buf[10000];
     switch(events){
@@ -183,24 +185,24 @@ char * getEventInfo(event_type events, pid_t pid, int sig, int argc, char *argv[
 
         case PROC_EXIT:
             snprintf(buf, 1024, "%s\n","PROC_EXIT");
-            snprintf(buf+strlen(buf), 1024, "%d\n", sig);
+            snprintf(buf + strlen(buf), 1024, "%d\n", sig);
             break;
 
         case SIGNAL_RECV:
             snprintf(buf, 1024, "%s\n","SIGNAL_RECV");
-            snprintf(buf+strlen(buf), 1024, "%d\n", sig);
+            snprintf(buf + strlen(buf), 1024, "%d\n", sig);
             break;
 
         case SIGNAL_SENT:
             snprintf(buf, 1024, "%s\n","SIGNAL_SENT");
-            snprintf(buf+strlen(buf), 1024, "%d : %d\n", sig, pid);
+            snprintf(buf + strlen(buf), 1024, "%d : %d\n", sig, pid);
             break;
 
         case FILE_MODF:
             snprintf(buf, 1024, "%s\n","FILE_MODF");
             char path[1000];
             strcpy(path, argv[argc-1]);
-            snprintf(buf+strlen(buf), 1024, "%s : %o : %o\n", path, old_permission, current_permission);
+            snprintf(buf + strlen(buf), 1024, "%s : %o : %o\n", path, old_permission, current_permission);
             break;
 
         default:
@@ -212,7 +214,7 @@ char * getEventInfo(event_type events, pid_t pid, int sig, int argc, char *argv[
 }
 
 
-int writeRecords(event_type event, int sig, int argc, char *argv[]){
+int writeRecords(event_type event, pid_t cur_pid, int sig, int argc, char *argv[]){
     char *filename;
     //user sets filename: export LOG_FILENAME='filename' (incluir pelicas) no terminal
     filename = getenv("LOG_FILENAME");   //check if variable LOG-FILENAME is set
@@ -228,15 +230,12 @@ int writeRecords(event_type event, int sig, int argc, char *argv[]){
         long int ticks = sysconf(_SC_CLK_TCK); 
         clock_t end_time = times(time_struct);
         double time_spent = (double)(end_time - begin_time) / ticks;
-        
-        //pid
-        pid_t pid = getpid();
 
         char path[100];
         strcpy(path,argv[3]);
         int cur_perm = getChmod(path);
         //events
-        char * event_info = getEventInfo(event, pid, sig, argc, argv, cur_perm);
+        char * event_info = getEventInfo(event, sig, argc, argv, cur_perm);
 
         int count;
         //snprintf formates and stores chars in buf, 2nd arg = max_num_chars
@@ -244,7 +243,7 @@ int writeRecords(event_type event, int sig, int argc, char *argv[]){
         write(filedesc, buf, count);  //write instant to filename
         printf("time spent: %s",buf);
 
-        count = snprintf(buf, 1000, "%d\n",pid); 
+        count = snprintf(buf, 1000, "%d\n",cur_pid); 
         write(filedesc, buf, count);  //write pid to filename       
         printf("%s\n",buf);
 
@@ -281,24 +280,98 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     return 0;
 }
 
-int main(int argc, char *argv[])
-{   
-    begin_time = times(time_struct);
+int count=1;
+
+int changeDirPerms(int argc, char *argv[])
+{
+    int id = fork();
+    DIR *dir_desc;
+    struct dirent * dir;
+
+    dir_desc = opendir(argv[argc-1]); //opendir(path) -> last argument of argv is path
+
     char option[100];
     strcpy(option,argv[1]);
     //printf("%s, %s, %s, %s\n", argv[0], argv[1], argv[2], argv[3]);
 
     char mode[100]; 
-    strcpy(mode,argv[2]);
-   
+    strcpy(mode,argv[argc-2]);
+
     char buf[100];
-    strcpy(buf,argv[3]);
+    strcpy(buf,argv[argc-1]);
    
     old_permission = getChmod(buf);
 
+    if (dir_desc != NULL) {
+     
+        while ((dir = readdir(dir_desc)) != NULL) { //copy to args all the elements in argv     
+
+            char ** args = malloc((argc+1)* sizeof(char *));
+            
+            for(int i = 0; i < argc; i++){
+                size_t size = strlen(argv[i]) + 1; 
+                args[i] = malloc(size);
+                memcpy(args[i],argv[i],size);
+            }
+
+            args[argc] = NULL;                      //by default, last argument is null
+            strcat(args[argc -1], "/");             //"/" at the end of path
+
+            if (!strcmp(dir->d_name, ".") || !strcmp(dir->d_name, ".."))
+                continue;
+
+            if(id == 0){ //processo pai
+                if (strcmp(dir->d_name, ".") == 0){ //it's a file
+                    printf("its a file");
+                    changePerms(option, mode, args[argc-1], old_permission);
+                }else{ //it's a folder
+                    printf("its a folder");
+                    argv[argc - 1] = dir->d_name;
+                    execvp("./xmod", argv);
+                    exit(0);
+                    //writerecord
+                }
+            }
+        }
+    }
+    if(closedir(dir_desc) < 0)
+        printf("Error closing dir\n");
+    
+    return 0;
+}
+
+int main(int argc, char *argv[])
+{   
+    
+    begin_time = times(time_struct);
+    pid = getpid();
+    char option[100];
+    strcpy(option,argv[1]);
+    //printf("%s, %s, %s, %s\n", argv[0], argv[1], argv[2], argv[3]);
+    printf("Main\n");
+
+    char mode[100]; 
+    strcpy(mode,argv[argc-2]);
+   
+    char buf[100];
+    strcpy(buf,argv[argc-1]);
+   
+    struct stat ret;
+    if (stat(buf, &ret) == -1) {
+        return -1;
+    }
+
+    old_permission = getChmod(buf);
+
+    if (S_ISDIR(ret.st_mode)){
+        printf("directorio");
+        changeDirPerms(argc, argv);
+    }
+
+
     changePerms(option, mode, buf, old_permission);   
     //printf("Permission changed with success.\n");
-    writeRecords(FILE_MODF, 1, argc, argv);  
+    writeRecords(FILE_MODF, getpid(),1, argc, argv);  
     return 0;
 }
     
