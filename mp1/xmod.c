@@ -104,7 +104,7 @@ int getOptions(const char *path, char* option, int previous_permission, int perm
 int checkPermissions(char*mode, char* manip)
 {
     int result = 00;
-    if (mode[1] == '-' || mode[1] == '+')
+    if (mode[1] == '+' || mode[1] == '=')
     {
         if ((strcmp(manip, "rwx") == 0) || (strcmp(manip, "rxw") == 0) || (strcmp(manip, "xrw") == 0) || (strcmp(manip, "xwr") == 0) || (strcmp(manip, "wrx") == 0) || (strcmp(manip, "wxr") == 0)) {
             result = 07;
@@ -124,7 +124,7 @@ int checkPermissions(char*mode, char* manip)
             printf("xmod: invalid mode: '%s'\n", mode);
             return -1;
         }
-    } else if (mode[1] == '='){
+    } else if (mode[1] == '-'){
         if ((strcmp(manip, "rwx") == 0) || (strcmp(manip, "rxw") == 0) || (strcmp(manip, "xrw") == 0) || (strcmp(manip, "xwr") == 0) || (strcmp(manip, "wrx") == 0) || (strcmp(manip, "wxr") == 0)) {
             result = 00;
         } else if ((strcmp(manip, "rw") == 0) || (strcmp(manip, "wr") == 0)) {
@@ -153,21 +153,72 @@ int checkPermissions(char*mode, char* manip)
 
 int checkMode(char* mode, int permission)
 {   
+    
     int result = 00;
-    char* manip = &mode[2];         // acepts mode[2] and following characters
+    char* manip = &mode[2];         // accepts mode[2] and following characters
+    printf("%o", permission);
+    printf("\n");
+
+    //everything checked until here
+    int temp = permission;
     if (mode[0] == 'u'){
-        result = permission ^ (checkPermissions(mode, manip)*64);
+        //result = permission ^ (checkPermissions(mode, manip)*64);
+        if (mode[1] == '=') {
+            temp = temp & 07077;
+            printf("%o\n", temp);
+            result = temp | (checkPermissions(mode, manip)*64);
+        }
+        else if (mode[1] == '+'){
+            result = permission | ((checkPermissions(mode, manip)*64) & 00700);
+        }
+        else if (mode[1] == '-'){
+            result = permission & ((checkPermissions(mode, manip)*64) | 07077);
+        }
     } else if (mode[0] == 'g'){
-        result = permission ^ (checkPermissions(mode, manip)*8);
+        //result = permission ^ (checkPermissions(mode, manip)*8);
+        if (mode[1] == '=') {
+            temp = temp & 07707;
+            printf("%o\n", temp);
+            result = temp | (checkPermissions(mode, manip)*8);
+        }
+        else if (mode[1] == '+'){
+            result = permission | ((checkPermissions(mode, manip)*8) & 00070);
+        }
+        else if (mode[1] == '-'){
+            result = permission & ((checkPermissions(mode, manip)*8) | 07707);
+        }
     } else if (mode[0] == 'o'){
-        result = permission ^ checkPermissions(mode, manip);
+        //result = permission ^ checkPermissions(mode, manip);
+        if (mode[1] == '=') {
+            temp = temp & 07770; // temp = permission & 07770 better
+            printf("%o\n", temp);
+            result = temp | checkPermissions(mode, manip);
+        }
+        else if (mode[1] == '+'){
+            result = permission | (checkPermissions(mode, manip) & 00007);
+        }
+        else if (mode[1] == '-'){
+            result = permission & (checkPermissions(mode, manip) | 07770);
+        }
     } else if (mode[0] == 'a'){
-        result = permission ^ (checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64);
+        //result = permission ^ (checkPermissions(mode, manip) + checkPermissions(mode, manip)*8 + checkPermissions(mode, manip)*64);
+        if (mode[1] == '=') {
+            temp = temp & 07000;
+            printf("%o\n", temp);
+            result = temp | checkPermissions(mode, manip) | (checkPermissions(mode, manip)*8) | (checkPermissions(mode, manip)*64);
+        }
+        else if (mode[1] == '+'){
+            result = permission | (checkPermissions(mode, manip) & 00007) | ((checkPermissions(mode, manip)*8) & 00070) | ((checkPermissions(mode, manip)*64) & 00700);
+        }
+        else if (mode[1] == '-'){
+            result = permission & (checkPermissions(mode, manip) | 07770) & ((checkPermissions(mode, manip)*8) | 07707) & ((checkPermissions(mode, manip)*64) | 07077);
+        }
     } else {
         printf("xmod: invalid mode: '%s'\n", mode);
         return -1;
     }
-
+    printf("%o", result);
+    printf("\n");
     return result;
     
 }
@@ -308,6 +359,7 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     char *endptr;
 
     new_permission = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
+
     if (endptr == mode)        // Not a number - MODE
         new_permission = checkMode(mode, permission);
     
