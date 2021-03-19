@@ -374,8 +374,11 @@ int changePerms(char* option, char *mode, char *buf, int permission){
 
     if (endptr == mode)        // Not a number - MODE
         new_permission = checkMode(mode, permission);
+    else if (mode[0] != '0') { //OCTAL must start with '0'
+        printf("\nOctal-mode permission must start with a '0'.\n");
+        exit(0);
+    }
 
-    
     if (chmod (buf, new_permission) < 0)
     {
         fprintf(stderr, "%s: error in chmod(%s, %s) - %d (%s)\n",
