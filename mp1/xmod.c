@@ -80,18 +80,28 @@ char* getPrintedMode(int permission){
 
 int getOptions(const char *path, char* option, int previous_permission, int permission){
     
-    if (strcmp(option, "-v" ) == 0 || strcmp(option, "-vR") == 0 || strcmp(option, "-Rv") == 0){
+    if (strcmp(option, "-v" ) == 0 || strcmp(option, "-vR") == 0 || strcmp(option, "-Rv") == 0 ||
+        strcmp(option, "-v-R") == 0 || strcmp(option, "-R-v") == 0){
         if (previous_permission == permission) return 0;
         printf("mode of '%s' retained as %o (%s)\n", path, permission, getPrintedMode(permission));
         return 0;
-    } else if (strcmp(option, "-c") == 0 || strcmp(option, "-vc") == 0 || strcmp(option, "-cv") == 0 || strcmp(option, "-cR") == 0 || strcmp(option, "-Rc") == 0){
+    } else if (strcmp(option, "-c") == 0 || strcmp(option, "-vc") == 0 || strcmp(option, "-cv") == 0 || 
+                strcmp(option, "-cR") == 0 || strcmp(option, "-Rc") == 0 || strcmp(option, "-Rcv") == 0 ||
+                strcmp(option, "-Rvc") == 0 || strcmp(option, "-cvR") == 0 || strcmp(option, "-cRv") == 0 ||
+                strcmp(option, "-vcR") == 0 || strcmp(option, "-vRc") == 0 || strcmp(option, "-R -c -v") == 0 || 
+                strcmp(option, "-c-R-v") == 0 || strcmp(option, "-c-v-R") == 0 || strcmp(option, "-v-R-c") == 0 ||
+                strcmp(option, "-v-c-R") == 0 || strcmp(option, "-R-v-c") == 0 || strcmp(option, "-v-c") == 0 ||
+                strcmp(option, "-c-R") == 0 || strcmp(option, "-R-c") == 0 || strcmp(option, "-c-v") == 0 ||
+                strcmp(option, "-R") == 0 ){
         if (previous_permission == permission) return 0;
         printf("mode of '%s' changed from %o (%s) to %o (%s)\n", path, previous_permission, getPrintedMode(previous_permission), permission, getPrintedMode(permission));
         return 0;
-    } else if (strcmp(option, "-R") == 0){
+    } /*else if (strcmp(option, "-R") == 0){
         if (previous_permission == permission) return 0;
         printf("mode of '%s' changed from %o (%s) to %o (%s)\n", path, previous_permission, getPrintedMode(previous_permission), permission, getPrintedMode(permission));
         return 0;
+    }*/ else {
+        printf("xmod: invalid option -- '%s'\n", option);
     }
     printf("Error in option.");
     return 1;
@@ -403,7 +413,6 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     nftot++;
 
     if(permission != new_permission) nfmod++;
-    
     getOptions(buf, option, permission, new_permission);
 
     writeRecords(FILE_MODF,getpid(),new_permission);
@@ -427,7 +436,7 @@ int changeDirPerms(int argc, char *argv[]){ //AMGS PODEM ME AJUDAR PARA EU PODER
     char buf[100]; 
 
     old_permission = getChmod(argv[argc-1]); // TO-DO, chmod is returning 41777 instead of 1777
-
+    
     changePerms(option, mode, argv[argc-1], old_permission);
 
     if ((dir_desc = opendir(argv[argc-1])) == NULL) 
@@ -515,7 +524,16 @@ int main(int argc, char *argv[])
     initSignals();
 
     char option[100];
-    strcpy(option,argv[1]);
+    //strcpy(option,argv[1]);
+    char* medium;
+    for (int i = 1; i < 4; i++)
+    {
+        if (argv[i][0] == '-') {
+            medium = argv[i];
+            strcat(option, medium);
+        }
+        
+    }
     
     char mode[100]; 
     strcpy(mode,argv[argc-2]);
@@ -531,8 +549,11 @@ int main(int argc, char *argv[])
     }
 
     old_permission = getChmod(buf); // TO-DO chmod returnin 41777 instead of 1777
-
-    if(option[1]=='R'){
+    if(strcmp(option, "R") == 0 || strcmp(option, "-cR") == 0 || strcmp(option, "-c-R") == 0 || strcmp(option, "-vR") == 0 ||
+        strcmp(option, "-v-R") == 0 || strcmp(option, "-cvR") == 0 || strcmp(option, "-c-v-R") == 0 || strcmp(option, "-vcR") == 0 ||
+        strcmp(option, "-v-c-R") == 0 || strcmp(option, "-vRc") == 0 || strcmp(option, "-v-R-c") == 0 || strcmp(option, "-c-R-v") == 0 ||
+        strcmp(option, "-cRv") == 0 || strcmp(option, "-Rvc") == 0 || strcmp(option, "-R-v-c") == 0 || strcmp(option, "-R-c-v") == 0 ||
+        strcmp(option, "-Rcv") == 0){
        changeDirPerms(argc, argv);
     }
     else{
