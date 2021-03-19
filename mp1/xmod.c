@@ -331,30 +331,27 @@ void sigHandler(int signo) {
     {
         case SIGINT:
             if (getpid() == getpgrp()){ //if group id == process id, it is the parent
-                printf("\n%d ; %s ;",getpid(),path_name); //TO-DO filename - global variable
-                printf(" nftot: %d ;",nftot); //TO-DO number of files already found - global variable
-                printf(" nfmod: %d \n", nfmod); //TO-DO number of files already modified - global variable
+                printf("\n%d ; %s ;",getpid(),path_name); //path_name - global variable
+                printf(" nftot: %d ;",nftot); //number of files already found - global variable
+                printf(" nfmod: %d \n", nfmod); //number of files already modified - global variable
                 printf("Terminate program (y/n)\n");
                 scanf("%c", &input);
               
-                do {
-                    if (input == 'y') {
-                        printf("\nProcess terminated.\n");
-                        kill(0, SIGTERM);
-                        writeRecords(PROC_EXIT, getpid(), SIGTERM );
-                        exit(0);
-                    }
-                    else if (input == 'n') {
-                        printf("\nProcess will continue.\n");
-                        kill(0, SIGCONT);
-                        //writeRecords();                        
-                        input = '0';
-                    }
-                    else {
-                        printf("Enter 'y' to terminate, enter 'n' to proceed.");
-                        scanf("%c", &input);
-                    }
-                } while (input != 'y' && input != 'n');
+                while (input != 'y' && input != 'n') {
+                    printf("Enter 'y' to terminate, enter 'n' to proceed.\n");
+                    scanf("%c", &input);
+                } 
+                if (input == 'y') {
+                    printf("\nProcess terminated.\n");
+                    kill(0, SIGTERM);
+                    writeRecords(PROC_EXIT, getpid(), SIGTERM );
+                    exit(0);
+                } else {
+                    printf("\nProcess will continue.\n");
+                    kill(0, SIGCONT);
+                    //writeRecords();                        
+                    input = '0';
+                }
             }
             else {
                 signal(SIGCONT,sigHandler);
@@ -372,7 +369,7 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     
     int new_permission;
     char *endptr;
-
+    
     new_permission = strtol(mode, &endptr, 8);     //Check if a string can be converted to int. Parameters passed by command line are always strings
 
     if (endptr == mode)        // Not a number - MODE
@@ -388,7 +385,7 @@ int changePerms(char* option, char *mode, char *buf, int permission){
     nftot++;
 
     if(permission != new_permission) nfmod++;
-
+    
     getOptions(buf, option, permission, new_permission);
     
     return 0;
@@ -411,8 +408,8 @@ int changeDirPerms(int argc, char *argv[])
     strcpy(mode,argv[argc-2]);
 
     char buf[100];
-    
-    old_permission = getChmod(argv[argc-1]);    
+
+    old_permission = getChmod(argv[argc-1]); // TO-DO, chmod is returning 41777 instead of 1777
 
     changePerms(option, mode, argv[argc-1], old_permission);
 
@@ -517,8 +514,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    old_permission = getChmod(buf);
-    
+    old_permission = getChmod(buf); // TO-DO chmod returnin 41777 instead of 1777
+    printf("\nbuf: ");
+    printf(buf);
+
     if(option[1]=='R'){
         changeDirPerms(argc, argv);
     }
